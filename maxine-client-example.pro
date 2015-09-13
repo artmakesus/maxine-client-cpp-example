@@ -3,7 +3,7 @@
 ######################################################################
 
 TEMPLATE = app
-TARGET = x-maxine-client
+TARGET = maine-client-example
 INCLUDEPATH += .
 QT += core dbus
 

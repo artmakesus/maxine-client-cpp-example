@@ -5,28 +5,42 @@
 #include <QSharedMemory>
 #include <QtMath>
 
-const QString DBUS_SERVICE_NAME = "com.artmakesus.maxine";
+static const QString DBUS_SERVICE_NAME = "com.artmakesus.maxine";
+static const int WIDTH = 1024;
+static const int HEIGHT = 768;
+
+void draw(quint32 *data)
+{
+	static int xx = 1;
+
+	for (quint32 y = 0; y < HEIGHT; y++) {
+		for (quint32 x = 0; x < WIDTH; x++) {
+			if (((x + xx) / 64) % 2 == 0) {
+				data[x + y * WIDTH] = 0xFFFFFFFF;
+			} else {
+				data[x + y * WIDTH] = 0;
+			}
+		}
+	}
+
+	xx = (xx + 8) % 128;
+}
 
 void manipulate(QDBusInterface &iface, const QString &key)
 {
-	quint32 t = 0;
 	for (;;) {
+		// FIXME: QSharedMemory shouldn't be recreated again and again but seems like it's the only way for the program to work
 		auto shm = new QSharedMemory(key);
 		shm->attach();
 		shm->lock();
 		auto data = static_cast<quint32*>(shm->data());
-		for (auto y = 0; y < 768; y++) {
-			for (auto x = 0; x < 1024; x++) {
-				data[x + y * 1024] = qSin(x * t * 20) * qCos(y * t * 10) * 0xFFFFFFFF;
-			}
-		}
+		draw(data);
 		shm->unlock();
+		shm->detach();
+		delete shm;
 
 		iface.call("invalidateSharedTexture", 0);
-		
 		QThread::msleep(16);
-		t += 16;
-		delete shm;
 	}
 }
 
@@ -43,7 +57,7 @@ int main(int argc, char **argv)
 
 	QDBusInterface iface(DBUS_SERVICE_NAME, "/", "", QDBusConnection::sessionBus());
 	if (iface.isValid()) {
-		QDBusReply<bool> reply = iface.call("createSharedTexture", "mytexture", 0, 1024, 768);
+		QDBusReply<bool> reply = iface.call("createSharedTexture", "mytexture", 0, WIDTH, HEIGHT);
 		if (reply.isValid()) {
 			printf("Reply was: %s\n", qPrintable(reply.value()));
 			manipulate(iface, "mytexture");
